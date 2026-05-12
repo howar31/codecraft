@@ -4,7 +4,7 @@
 
 In-browser WebM → GIF converter. Files never leave your device — everything runs locally via ffmpeg.wasm.
 
-**線上版本 / Live:** https://howar31.github.io/codecraft/
+**線上版本 / Live:** https://lab.howar31.com/codecraft/
 
 ## Features
 
