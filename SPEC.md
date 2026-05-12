@@ -1,8 +1,10 @@
-# codecraft — SPEC
+# Codec Craft — SPEC
 
 ## Purpose
 
 Pure-frontend WebM → GIF converter. Single-page web app deployed to GitHub Pages. Files never leave the device — everything runs locally in the browser via ffmpeg.wasm.
+
+Display name **Codec Craft**; slug `codecraft` (the two `c`s at the join are merged). The slug is the package name, repo name, GitHub Pages subpath, and dev-server route — keep it lowercase and unbroken everywhere it functions as an identifier.
 
 **Goals**
 

@@ -1,4 +1,6 @@
-# codecraft
+# Codec Craft
+
+> 名稱 **Codec Craft**，slug `codecraft`（中間兩個 c 合併）。
 
 [![License](https://img.shields.io/github/license/howar31/codecraft?style=flat-square)](./LICENSE)
 [![Powered by ffmpeg.wasm](https://img.shields.io/badge/powered%20by-ffmpeg.wasm-007808?style=flat-square)](https://github.com/ffmpegwasm/ffmpeg.wasm)

@@ -1,7 +1,7 @@
 {
   "name": "codecraft",
   "version": "0.1.0",
-  "description": "In-browser WebM → GIF converter powered by ffmpeg.wasm",
+  "description": "Codec Craft — in-browser WebM → GIF converter powered by ffmpeg.wasm",
   "private": true,
   "type": "module",
   "scripts": {

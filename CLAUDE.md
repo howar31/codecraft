@@ -1,6 +1,6 @@
-# CLAUDE.md — codecraft
+# CLAUDE.md — Codec Craft
 
-Pure-frontend WebM → GIF converter. See [SPEC.md](SPEC.md) for full architecture.
+Pure-frontend WebM → GIF converter. Display name **Codec Craft**, slug `codecraft` (merged two `c`s). See [SPEC.md](SPEC.md) for full architecture.
 
 ## Commands
 
