@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebM → GIF Converter</title>
+    <script type="module" crossorigin src="/codecraft/assets/index-D0lRwTzq.js"></script>
+    <link rel="stylesheet" crossorigin href="/codecraft/assets/index-DdqlNupw.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>WebM → GIF Converter</h1>
+        <p class="subtitle">
+          瀏覽器內轉檔，檔案不上傳 / In-browser conversion, no upload
+        </p>
+      </header>
+
+      <section id="drop-zone" class="drop-zone">
+        <p>拖曳 .webm 檔案到這裡<br />Drop .webm files here</p>
+        <p class="muted">或點擊選擇 / or click to select</p>
+        <input id="file-input" type="file" accept="video/webm" multiple hidden />
+      </section>
+
+      <section class="controls">
+        <label>
+          FPS
+          <input id="fps" type="number" min="5" max="30" value="15" />
+        </label>
+        <label>
+          Width (px)
+          <input id="width" type="number" min="200" max="1920" value="800" />
+        </label>
+        <fieldset>
+          <legend>品質 / Quality</legend>
+          <label>
+            <input type="radio" name="quality" id="quality-high" value="high" checked />
+            高品質 / High (palette)
+          </label>
+          <label>
+            <input type="radio" name="quality" id="quality-normal" value="normal" />
+            一般 / Normal
+          </label>
+        </fieldset>
+      </section>
+
+      <section class="actions">
+        <button id="start-btn" disabled>開始轉換 / Convert</button>
+        <span id="load-status" class="muted"></span>
+      </section>
+
+      <section>
+        <h2>結果 / Results</h2>
+        <div id="results"></div>
+      </section>
+
+      <footer class="muted">
+        <p>
+          大檔案建議在桌機使用，首次載入 ffmpeg-core 約 30MB。<br />
+          Use desktop for large files; first load downloads ~30MB ffmpeg-core.
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>
