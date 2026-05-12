@@ -1,5 +1,13 @@
 # codecraft
 
+[![License](https://img.shields.io/github/license/howar31/codecraft?style=flat-square)](./LICENSE)
+[![Powered by ffmpeg.wasm](https://img.shields.io/badge/powered%20by-ffmpeg.wasm-007808?style=flat-square)](https://github.com/ffmpegwasm/ffmpeg.wasm)
+[![Deploy](https://img.shields.io/github/actions/workflow/status/howar31/codecraft/deploy.yml?style=flat-square&label=deploy)](https://github.com/howar31/codecraft/actions/workflows/deploy.yml)
+[![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-yellow?style=flat-square)](https://www.conventionalcommits.org)
+[![Stars](https://img.shields.io/github/stars/howar31/codecraft?style=flat-square)](https://github.com/howar31/codecraft/stargazers)
+[![Last commit](https://img.shields.io/github/last-commit/howar31/codecraft?style=flat-square)](https://github.com/howar31/codecraft/commits/main)
+[![Sponsor on Ko-fi](https://img.shields.io/badge/sponsor-Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/howar31)
+
 瀏覽器內 WebM → GIF 轉檔工具。檔案不離開裝置，全程在本地用 ffmpeg.wasm 處理。
 
 In-browser WebM → GIF converter. Files never leave your device — everything runs locally via ffmpeg.wasm.
