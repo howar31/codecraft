@@ -181,6 +181,8 @@ APNG is lossless; "Quality" controls encoder effort (size vs speed) rather than 
 
 **i18n** — `STRINGS['zh-Hant' | 'en']` keyed by short identifier; initial choice is `localStorage.codecraft.lang` or `navigator.language.startsWith('zh') ? 'zh-Hant' : 'en'`. `applyLang()` walks `[data-i18n]` for `textContent` and `[data-i18n-title]` for the `title` attribute; dynamic strings (per-row status, download links, dup badge) are re-rendered from stored state on language switch.
 
+**Page footer** — single horizontal bar (wraps on narrow) with a privacy tagline ("純本機 ffmpeg.wasm · 高隱私" / "Pure-local ffmpeg.wasm · privacy-first") on the left and credit links (`Howar31` profile, `GitHub` repo, plus an uppercase "贊助 / Sponsor" label followed by `Ko-fi` and `PayPal` links) on the right. Ko-fi → `ko-fi.com/howar31`; PayPal → `donate.howar31.com` (Cloudflare 302 → PayPal Hosted Button `MLVT3HDZKUZCW`). Sponsor links hover to their brand colors (`#FF5E5B` / `#0070BA`). Order and Chinese wording follow the `accept-donations` skill's rules: Ko-fi first (guest-checkout friction is lowest), label uses「贊助」(not「捐款」or「支持」).
+
 ## Conventions
 
 - Code comments: English.

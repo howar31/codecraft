@@ -38,6 +38,8 @@ const STRINGS = {
     duplicate: '重複',
     duplicate_hint: '同名同大小的檔案已在清單中，仍會照轉',
     drop_overlay: '放開以加入轉換清單',
+    footer_privacy: '純本機 ffmpeg.wasm · 高隱私',
+    footer_sponsor: '贊助',
   },
   en: {
     subtitle: 'WebM · GIF · APNG · in-browser conversion',
@@ -69,6 +71,8 @@ const STRINGS = {
     duplicate: 'Duplicate',
     duplicate_hint: 'A file with the same name and size is already queued; this one will still be converted',
     drop_overlay: 'Drop to add files',
+    footer_privacy: 'Pure-local ffmpeg.wasm · privacy-first',
+    footer_sponsor: 'Sponsor',
   },
 };
 
