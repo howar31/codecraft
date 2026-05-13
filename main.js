@@ -32,7 +32,6 @@ function pillLabel(p) { return `${SOURCE_LABEL[p.source]} → ${TARGET_LABEL[p.t
 const STRINGS = {
   'zh-Hant': {
     subtitle: '瀏覽器內 codec 工作台 · WebM / GIF / APNG 互轉',
-    future_tools_hint: '未來：Trim · Crop · Mute · …',
     drop_title_webm: '拖曳 .webm 到這裡',
     drop_title_gif: '拖曳 .gif 到這裡',
     drop_title_apng: '拖曳 .apng 或 .png 到這裡',
@@ -88,11 +87,9 @@ const STRINGS = {
     toast_switched_to: '已切到「{name}」',
     toast_unsupported_format: '不支援這個格式：{filename}',
     footer_privacy: '純本機 ffmpeg.wasm · 高隱私',
-    footer_sponsor: '贊助',
   },
   en: {
     subtitle: 'In-browser codec workbench · WebM / GIF / APNG conversions',
-    future_tools_hint: 'Future: Trim · Crop · Mute · …',
     drop_title_webm: 'Drop .webm here',
     drop_title_gif: 'Drop .gif here',
     drop_title_apng: 'Drop .apng or .png here',
@@ -148,7 +145,6 @@ const STRINGS = {
     toast_switched_to: 'Switched to {name}',
     toast_unsupported_format: 'Unsupported file format: {filename}',
     footer_privacy: 'Pure-local ffmpeg.wasm · privacy-first',
-    footer_sponsor: 'Sponsor',
   },
 };
 

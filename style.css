@@ -124,12 +124,6 @@ h2 {
   color: #0f1117;
   border-color: var(--accent);
 }
-.pills-future-hint {
-  font-size: 0.74rem;
-  letter-spacing: 0.04em;
-  opacity: 0.7;
-}
-
 /* ---------- layout ---------- */
 
 .layout {
@@ -628,17 +622,8 @@ body.editing .pill { cursor: default; }
 }
 .page-footer .links a:hover { color: var(--accent); text-decoration: underline; }
 .page-footer .links .sep,
-.page-footer .links .sep-tight { color: var(--border); }
-.page-footer .links .sponsor-label {
-  margin-left: 0.1rem;
-  margin-right: -0.1rem;
-  font-size: 0.7rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  opacity: 0.85;
-}
-.page-footer .links .sponsor-kofi:hover { color: #FF5E5B; }
-.page-footer .links .sponsor-paypal:hover { color: #0070BA; }
+.page-footer .links .kofi-link:hover { color: #FF5E5B; }
+.page-footer .links .paypal-link:hover { color: #0070BA; }
 
 /* ---------- drop overlay ---------- */
 

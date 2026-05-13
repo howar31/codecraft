@@ -6,7 +6,7 @@
 [![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-yellow?style=flat-square)](https://www.conventionalcommits.org)
 [![Stars](https://img.shields.io/github/stars/howar31/codecraft?style=flat-square)](https://github.com/howar31/codecraft/stargazers)
 [![Last commit](https://img.shields.io/github/last-commit/howar31/codecraft?style=flat-square)](https://github.com/howar31/codecraft/commits/main)
-[![Sponsor on Ko-fi](https://img.shields.io/badge/sponsor-Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/howar31)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-FF5E5B?style=flat-square&logo=ko-fi&logoColor=white)](https://ko-fi.com/howar31)
 
 > 名稱 **Codec Craft**，slug `codecraft`（中間兩個 c 合併）。
 
