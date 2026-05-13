@@ -17,69 +17,36 @@
         <p class="subtitle" data-i18n="subtitle"></p>
       </header>
 
+      <nav class="pills-bar" aria-label="Conversions">
+        <div class="pills-row" id="pills-row" role="tablist"></div>
+        <span class="pills-future-hint muted" data-i18n="future_tools_hint"></span>
+      </nav>
+
       <div class="layout">
         <aside class="controls-pane">
           <section id="drop-zone" class="drop-zone">
-            <p data-i18n="drop_title"></p>
+            <p class="drop-title" data-i18n="drop_title"></p>
             <p class="muted" data-i18n="drop_hint"></p>
             <input id="file-input" type="file" accept="video/webm,image/gif,image/apng,image/png" multiple hidden />
           </section>
 
-          <section class="controls">
-            <label>
-              <span data-i18n="label_fps"></span>
-              <select id="fps">
-                <option value="" data-i18n="opt_auto" selected></option>
-                <option value="10">10</option>
-                <option value="12">12</option>
-                <option value="15">15</option>
-                <option value="20">20</option>
-                <option value="24">24</option>
-                <option value="30">30</option>
-                <option value="50">50</option>
-              </select>
-            </label>
-            <label>
-              <span data-i18n="label_width"></span>
-              <select id="width">
-                <option value="" data-i18n="opt_original" selected></option>
-                <option value="240">240</option>
-                <option value="320">320</option>
-                <option value="480">480</option>
-                <option value="640">640</option>
-                <option value="800">800</option>
-                <option value="1080">1080</option>
-                <option value="1280">1280</option>
-                <option value="1920">1920</option>
-              </select>
-            </label>
-            <label class="checkbox">
-              <span data-i18n="label_loop"></span>
-              <input type="checkbox" id="loop" checked />
-            </label>
-            <div class="row">
-              <span class="row-label" data-i18n="default_outputs_label" data-i18n-title="default_outputs_hint"></span>
-              <div class="target-chips" id="default-output-chips" role="group">
-                <button type="button" class="chip" data-default-target="webm">WebM</button>
-                <button type="button" class="chip" data-default-target="apng">APNG</button>
-              </div>
-            </div>
-            <fieldset>
-              <legend data-i18n="quality_legend"></legend>
-              <label>
-                <input type="radio" name="quality" id="quality-high" value="high" checked />
-                <span data-i18n="quality_high"></span>
-              </label>
-              <label>
-                <input type="radio" name="quality" id="quality-normal" value="normal" />
-                <span data-i18n="quality_normal"></span>
-              </label>
-            </fieldset>
-          </section>
+          <div id="edit-context" class="edit-context" hidden>
+            <span class="edit-context-label" data-i18n="edit_context_label"></span>
+            <span class="edit-context-pill"></span>
+            <span class="edit-context-name"></span>
+          </div>
 
-          <section class="actions">
+          <section id="active-pill-controls" class="controls"></section>
+
+          <section class="actions normal-actions">
             <button id="start-btn" disabled data-i18n="start_button"></button>
             <span id="load-status" class="muted"></span>
+          </section>
+
+          <section id="edit-actions" class="edit-actions sidebar-edit-actions" hidden>
+            <button type="button" id="edit-overwrite-btn" class="edit-primary" data-i18n="edit_overwrite"></button>
+            <button type="button" id="edit-duplicate-btn" class="edit-secondary" data-i18n="edit_duplicate"></button>
+            <button type="button" id="edit-cancel-btn" class="edit-cancel" data-i18n="edit_cancel"></button>
           </section>
 
           <footer class="muted">
@@ -112,6 +79,8 @@
           <p data-i18n="drop_overlay"></p>
         </div>
       </div>
+
+      <div id="toast-host" aria-live="polite" aria-atomic="true"></div>
     </main>
     <script type="module" src="./main.js"></script>
   </body>

@@ -10,9 +10,9 @@
 
 > 名稱 **Codec Craft**，slug `codecraft`（中間兩個 c 合併）。
 
-瀏覽器內動態影像格式互轉工具：WebM ⇄ GIF、GIF ⇄ APNG。檔案不離開裝置，全程在本地用 ffmpeg.wasm 處理。
+瀏覽器內 codec 工作台：WebM / GIF / APNG 兩兩互轉。檔案不離開裝置，全程在本地用 ffmpeg.wasm 處理。架構為「每個轉換一個 pill」，未來預留 trim / crop / mute 等非轉換型工具的擴充。
 
-In-browser bidirectional animated-image converter: WebM ⇄ GIF, GIF ⇄ APNG. Files never leave your device — everything runs locally via ffmpeg.wasm.
+In-browser codec workbench for WebM / GIF / APNG cross-conversion. Files never leave your device — everything runs locally via ffmpeg.wasm. The UI is pill-per-conversion; future tools (trim / crop / mute) plug in as additional pills.
 
 ![Codec Craft demo](./docs/hero.gif)
 
@@ -20,19 +20,23 @@ In-browser bidirectional animated-image converter: WebM ⇄ GIF, GIF ⇄ APNG. F
 
 ## Features
 
-- 純前端，無後端，無上傳
-- 支援格式對：WebM → GIF、GIF → WebM / APNG、APNG → GIF（`.png` 會 byte-sniff 判定是否為 APNG）
-- 批次轉檔，同一張 GIF 可一次輸出多種格式（per-card chips 或全域 default）
+- 純前端，無後端，無上傳；30 MB 的 ffmpeg-core 在首次轉檔時才從 CDN 載入
+- **6 條轉換路徑**：WebM ↔ GIF、GIF ↔ APNG、WebM ↔ APNG。每條轉換一個 pill，UI 只露出該轉換真正相關的選項
+- 拖檔到錯誤 pill 時自動切到對的那個（記住每個 source 上次用的 pill），info toast 確認
+- 設定快照（snapshot at drop）：拖入瞬間把 FPS / 寬度 / 品質 / Loop 拍存進該卡，後續改 sidebar 不會影響已排入的卡
+- ✎ 編輯模式：sidebar 變身為該卡的編輯介面，整頁 dim 只剩編輯卡 + 控制面板亮著；確認後可「覆蓋本卡」或「建立新卡」；ESC 取消
 - FPS 預設「依來源」可選 10 ~ 50；寬度預設「原寬」可選 240 ~ 1920
-- 無限循環播放可切換（GIF `-loop 0/-1`、APNG `-plays 0/1`、WebM `<video loop>`）
-- 兩種輸出品質：
-  - **High** — GIF: palettegen + paletteuse；WebM: VP8 CRF 10；APNG: `-pred mixed -compression_level 9`
-  - **Normal** — 較快、檔案較小（GIF 直接輸出；WebM CRF 24）
+- 三種 target 各自的品質語意（每個 pill 標籤都對應實際 codec 行為）：
+  - **→ GIF** — 精細取色（palettegen + paletteuse）vs 快速取色（ffmpeg 單段預設）
+  - **→ WebM** — 畫質優先（VP8 CRF 10）vs 檔案優先（VP8 CRF 24）
+  - **→ APNG** — 最小檔案（`-pred mixed -compression_level 9`）vs 快速編碼（PNG 預設）
+- 無限循環設定只出現在 GIF / APNG 輸出（會寫進 Netscape Loop Extension / `acTL.num_plays`）；WebM 容器無此 metadata 所以該 pill 不顯示
 - 完成後就地預覽 GIF / APNG（`<img>`）與 WebM（`<video>`），並提供下載連結
 - 超過 5 MB 顯示警告（hover 看詳細）
 - 重複檔案偵測（同名同大小提示但不阻擋）
-- 拖檔可從整個瀏覽器視窗任何位置丟入
-- 雙欄佈局，左側控制項在寬螢幕 sticky 跟著捲動
+- 拖檔可從整個瀏覽器視窗任何位置丟入；`.png` 會 byte-sniff `acTL` 判定是否為 APNG
+- Viewport-fit 佈局：header / pills / footer 釘住，只有佇列區捲動；toast 出現在畫面正上方
+- 設定按 pill 各自持久化（`codecraft.opts.<pill-id>`），上次用的 pill 也記住，URL hash 可直接 bookmark 特定轉換
 - i18n（中文 / English）切換、偏好寫入 localStorage
 
 ## Stack

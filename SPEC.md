@@ -2,23 +2,25 @@
 
 ## Purpose
 
-Pure-frontend bidirectional animated-image converter. Single-page web app deployed to GitHub Pages. Files never leave the device — everything runs locally in the browser via ffmpeg.wasm.
+Pure-frontend workbench for browser-runnable codec libraries (currently `ffmpeg.wasm`). Today's surface is animated-image conversion across WebM / GIF / APNG; the architecture is intended to grow into other client-side codec operations (e.g., video trim/crop, audio mute, container remux, frame extraction). Single-page web app deployed to GitHub Pages. Files never leave the device — everything runs locally in the browser.
 
 Display name **Codec Craft**; slug `codecraft` (the two `c`s at the join are merged). The slug is the package name, repo name, GitHub Pages subpath, and dev-server route — keep it lowercase and unbroken everywhere it functions as an identifier.
 
-**Supported conversions**
+**Supported conversions** (six `source → target` pairs)
 
-| Source | Target(s) |
-|---|---|
-| `.webm` | GIF |
-| `.gif` | WebM, APNG (multi-select per source) |
-| `.apng` / `.png` (with `acTL`) | GIF |
+| ↓ source / → target | GIF | WebM | APNG |
+|---|---|---|---|
+| **WebM** | ✓ | — | ✓ |
+| **GIF** | — | ✓ | ✓ |
+| **APNG** (`.png` with `acTL`) | ✓ | ✓ | — |
 
 **Goals**
 
 - Zero server, zero upload, zero tracking; everything client-side.
-- One source file can fan out to multiple targets in a single batch.
-- Two output-quality modes (palette-optimized vs direct for GIF; CRF presets for WebM; encoder-effort presets for APNG).
+- Each conversion gets its own focused view (pill) with only the options that conversion actually needs.
+- Per-card setting snapshots — files dropped at one set of opts keep those opts even after the user changes the panel for new drops.
+- In-place card editing without leaving the page (sidebar transforms into the editor).
+- Per-target quality semantics labelled in the user's own terms (palette accuracy / CRF / encoder effort).
 - Inline preview + download link on completion.
 - Bilingual UI (Traditional Chinese + English) via runtime `data-i18n` substitution; user choice persisted.
 
@@ -34,16 +36,16 @@ index.html  →  main.js  →  @ffmpeg/ffmpeg (ESM, module worker)
 - **Worker:** Vite spawns ffmpeg's worker with `type: "module"`. The library tries `importScripts(coreURL)` first (classic-worker path), catches, then falls back to dynamic `import()`. The fallback only works against the ESM core build — hence `FFMPEG_CORE_BASE` points to `https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm`.
 - **Core loading:** `coreURL` / `wasmURL` are fetched once, converted to blob URLs via `toBlobURL`, then passed to `ffmpeg.load()`. ~30 MB total, browser-cached after first load.
 - **No COOP/COEP:** Single-threaded ffmpeg.wasm does not need `SharedArrayBuffer`. Setting those headers actually breaks the unpkg fetch (no CORP on the response).
-- **Single ffmpeg instance:** One shared `FFmpeg` object processes the queue serially; `currentOutput = { item, target }` routes progress events to the correct sub-row.
-- **Concurrent-run guard:** A global `running` flag is set on entry to `startAll()`; reentry returns immediately. New files dropped mid-run are appended to the same batch (the outer `for…of` over the array reads `.length` each step), so the user never needs to click Convert twice.
+- **Single ffmpeg instance:** One shared `FFmpeg` object processes the queue serially; `currentItem` routes progress events to the active card.
+- **Concurrent-run guard:** A global `running` flag is set on entry to `startAll()`; reentry returns immediately. New files dropped mid-run are appended to the same batch (the outer `for…of` over the array reads `.length` each step).
 
 ## Layout
 
 ```
 .
-├── index.html                       UI shell: header, two-column layout, drop overlay
-├── main.js                          App logic (single module, ~740 lines)
-├── style.css                        Dark theme, two-column responsive grid
+├── index.html                       UI shell: pills bar, two-column layout, edit-context + edit-actions slots, drop overlay, toast host
+├── main.js                          App logic (single module)
+├── style.css                        Dark theme, viewport-fit responsive layout
 ├── vite.config.js                   base: '/codecraft/' + optimizeDeps.exclude for ffmpeg packages
 ├── package.json                     deps: @ffmpeg/ffmpeg, @ffmpeg/util · devDep: vite
 ├── package-lock.json
@@ -64,30 +66,52 @@ index.html  →  main.js  →  @ffmpeg/ffmpeg (ESM, module worker)
 
 ## Data model
 
-A `queue` of `item` objects, one per uploaded source file:
+**`PILLS`** — the primary catalog of available conversions:
 
+```js
+[
+  { id: 'webm-to-gif',  source: 'webm', target: 'gif',  showLoop: true  },
+  { id: 'webm-to-apng', source: 'webm', target: 'apng', showLoop: true  },
+  { id: 'gif-to-webm',  source: 'gif',  target: 'webm', showLoop: false },
+  { id: 'gif-to-apng',  source: 'gif',  target: 'apng', showLoop: true  },
+  { id: 'apng-to-gif',  source: 'apng', target: 'gif',  showLoop: true  },
+  { id: 'apng-to-webm', source: 'apng', target: 'webm', showLoop: false },
+]
 ```
+
+`showLoop` is `false` for `*-to-webm` pills because WebM's container has no portable "loop forever" metadata; the Loop checkbox is hidden in those views. Adding a new pair = append to `PILLS` and add a `${source}->${target}` branch in `processOne`. Adding a non-conversion tool (trim, crop, mute) is expected to grow a parallel registry rather than be forced into the `source→target` shape.
+
+**Queue items** — one per dropped file, single-target:
+
+```js
 item = {
-  file,                        // browser File
-  source,                      // 'webm' | 'gif' | 'apng'
-  targets,                     // SOURCE_TARGETS[source]; choices the user may pick from
-  selected,                    // ordered array of currently-enabled targets (≥ 1)
-  outputs: {                   // map keyed by target name
-    [target]: {
-      status,                  // 'pending' | 'processing' | 'done' | 'failed'
-      statusKey, statusPct, statusExtra,   // for i18n re-rendering
-      blobUrl,                 // active object URL for cleanup
-      row,                     // .output-row DOM node
-    }
-  },
-  dims,                        // { w, h } once probe completes (async, post-add)
-  duplicate,                   // true if a same-name-and-size item already in queue
-  card,                        // .source-card DOM node
-  outputsContainer,            // .outputs DOM node (parent of all output-rows)
+  file,                                          // browser File
+  source,                                        // 'webm' | 'gif' | 'apng'
+  target,                                        // 'webm' | 'gif' | 'apng'
+  pillId,                                        // PILLS[i].id at drop time
+  opts: { fps, width, loop, quality },           // SNAPSHOT — frozen at drop, independent of sidebar
+  dims,                                          // { w, h } once probed
+  duplicate,                                     // true if same (name, size) already queued
+  status,                                        // 'pending' | 'processing' | 'done' | 'failed'
+  statusKey, statusPct, statusExtra,             // for i18n re-rendering of status text
+  blobUrl,                                       // output Blob URL (cleaned up on remove/re-encode)
+  card,                                          // .source-card DOM node
+  nodes,                                         // { badge, filename, dims, dup, summary, status, progress, bar, action, preview, editBtn, removeBtn }
 }
 ```
 
-`SOURCE_TARGETS = { webm: ['gif'], gif: ['webm', 'apng'], apng: ['gif'] }` — adding a new source/target pair only requires touching this map plus the relevant branch in `processOne`.
+Each card renders one target only. The old per-card multi-target chip mechanism is gone (the equivalent now is to convert twice from two different pills, or use ✎ Duplicate after edit).
+
+**Per-pill option persistence:**
+
+| Key | Shape | Purpose |
+|---|---|---|
+| `codecraft.lang` | `'zh-Hant' \| 'en'` | UI language |
+| `codecraft.last_pill` | pill id | Used when the URL has no `#/<pill>` hash on load |
+| `codecraft.last_pill_by_source` | `{ [source]: pillId }` | Auto-switch destination for wrong-source drops |
+| `codecraft.opts.<pill-id>` | `{ fps, width, loop, quality }` | Each pill remembers its own sidebar settings |
+
+Sidebar changes are persisted on every input event via the `onChange` callback passed to `buildOptsControls`. Edit-mode changes are NOT persisted to localStorage — they apply only to the card being edited (via Overwrite / Duplicate).
 
 ## Format detection
 
@@ -97,23 +121,24 @@ item = {
 
 ## Conversion pipelines
 
-User-configurable inputs:
+User-configurable inputs (per pill, persisted independently):
 
 | Option | Values | Default |
 |---|---|---|
 | FPS | `Auto`, 10, 12, 15, 20, 24, 30, 50 | Auto (no `fps=` filter) |
 | Width | `Original`, 240, 320, 480, 640, 800, 1080, 1280, 1920 | Original |
-| Loop | checkbox | on |
-| Quality | High / Normal | High |
-| GIF outputs (default) | WebM, APNG (multi-select) | `[webm]` (persisted to `localStorage.codecraft.default_gif_targets`) |
+| Loop | checkbox (visible only when `pill.showLoop`) | on |
+| Quality | High / Normal, with target-specific labels | High |
 
 `buildFilters({ fps, width }, forVP8)` produces an array of filter expressions:
 
 - `fps=N` if a numeric FPS is chosen.
 - `scale=W:-1:flags=lanczos` (or `:-2:` for VP8) if a numeric width is chosen.
-- For VP8 with "Original" width, a no-op-when-even `scale=iw:-2:flags=lanczos` is still emitted because VP8 requires even dimensions.
+- For VP8 with "Original" width, a `scale=iw:-2:flags=lanczos` is still emitted because VP8 requires even dimensions.
 
-**WebM → GIF and APNG → GIF**
+`processOne(item)` switches on `${source}->${target}` and dispatches to one of four ffmpeg recipes. Output blobs are stamped with `TARGET_MIME[target]` and previewed inline: `<img>` for GIF / APNG, `<video controls loop muted autoplay playsInline>` for WebM. Files larger than 5 MB show a `⚠` glyph with i18n tooltip.
+
+**WebM → GIF / APNG → GIF**
 
 ```
 # Normal mode — single pass
@@ -126,77 +151,108 @@ ffmpeg -i input.<ext> -i palette.png \
   -loop {0|-1} output.gif
 ```
 
-`-loop 0` = infinite (forced by default), `-loop -1` = single playback. The infinite-loop default ensures source GIFs that lack a Netscape loop extension still loop in the output.
+`-loop 0` = infinite (default), `-loop -1` = single playback. Label: "精細取色（兩段 palette）" / "Accurate colors (two-pass palette)" vs "快速取色" / "Fast palette".
 
-**GIF → WebM** (VP8, NOT VP9 — see Key Decisions)
+**GIF → WebM and APNG → WebM** (VP8 only — see Key Decisions)
 
 ```
-ffmpeg -i input.gif -vf "<filters>" \
+ffmpeg -i input.<ext> -vf "<filters>" \
   -c:v libvpx -quality good -cpu-used 0 \
   -crf {10|24} -b:v 1M \
   -pix_fmt yuv420p \
   output.webm
 ```
 
-WebM has no muxer-level loop flag; the loop preference only influences the preview `<video loop>` attribute.
+`apng-to-webm` shares the exact same recipe with the source demuxer switched. WebM has no muxer-level loop flag; Loop checkbox is therefore hidden in `*-to-webm` pills. Label: "畫質優先（VP8 CRF 10）" / "Quality first (VP8 CRF 10)" vs "檔案優先（VP8 CRF 24）" / "Size first (VP8 CRF 24)".
 
-**GIF → APNG**
+**GIF → APNG and WebM → APNG**
 
 ```
-ffmpeg -i input.gif [-vf "<filters>"] -plays {0|1} -f apng \
+ffmpeg -i input.<ext> [-vf "<filters>"] -plays {0|1} -f apng \
   [-pred mixed -compression_level 9]  # high quality only
   output.apng
 ```
 
-APNG is lossless; "Quality" controls encoder effort (size vs speed) rather than visual fidelity.
-
-`processOne(item, target, opts)` switches on `${source}->${target}` and dispatches to one of the four branches above. Output blobs are stamped with `TARGET_MIME[target]` and previewed inline: `<img>` for GIF / APNG, `<video controls loop muted autoplay playsInline>` for WebM. Files larger than 5 MB show a `⚠` glyph with i18n tooltip.
+APNG is lossless; "Quality" controls encoder effort (size vs speed) rather than visual fidelity. Label: "最小檔案（較慢）" / "Smallest file (slower)" vs "快速編碼" / "Fast encode".
 
 ## UI behavior
 
-**Layout** — Two-column at `≥ 960 px` (CSS grid `340px / 1fr`); single column below. On wide layouts the left controls pane is `position: sticky` so drop-zone + controls + Convert button stay reachable while the right queue scrolls.
+**Pill bar** — Six pill buttons across the top of the page, one per conversion. Click a pill → updates `location.hash` to `#/<pill-id>`, which triggers a `hashchange` listener calling `setActivePill(id)`. The sidebar's opts widget rebuilds from `loadOpts(pillId)`, the drop-zone title swaps to match the source format, and the pill bar's active class moves. A `pills-future-hint` reserves visual space for future tools (Trim · Crop · Mute · …).
+
+**Shared opts widget** — `buildOptsControls(pill, initialOpts, { onChange, namePrefix, compact })` returns `{ root, read }`. The sidebar mounts it in normal mode with an `onChange` that persists to `codecraft.opts.<pill-id>`; edit mode re-mounts the same widget bound to a single card's `item.opts` with no `onChange` (`read()` is called on Overwrite / Duplicate confirm). One widget definition; new opts fields are added in one place.
+
+**Drop → snapshot opts** — When files are added (`addFiles`):
+
+1. `detectSource(file)` for each file.
+2. Unsupported files → error toast (`toast_unsupported_format`).
+3. If the entire supported batch shares one source different from the active pill, auto-switch: choose destination via `codecraft.last_pill_by_source[source]` (falling back to `PILLS_BY_SOURCE[source][0].id`), update hash, fire info toast (`toast_switched_to`).
+4. Mixed-source batches do NOT auto-switch — non-matching files toast `toast_wrong_source` and are skipped.
+5. Matching files: `snapshotControls()` reads the current sidebar widget's `read()` result, the resulting opts dict is stored on the new `item.opts`, the card is rendered, and dimensions are probed asynchronously.
+
+**Card** (`.source-card`) — Compact single-row layout:
+
+```
+[pill badge] filename  dims  [duplicate?]                     ✎  ✕
+opts summary                                                  status
+[progress bar — visible only during writing/converting]
+[download link · size · ⚠?]
+[preview <img|video>]
+```
+
+`opts summary` is `t('summary_fps', { v }) · t('summary_width', { v }) · target-specific quality label [· Loop / Once if pill.showLoop]`, rendered from `item.opts` (the snapshot, not the live sidebar).
+
+**Edit mode** — `editingItem` is the single global flag. Clicking ✎ on a card calls `enterEditMode(item)`:
+
+1. Rebuild the sidebar widget using the card's `pill` context with `item.opts` as initial values. No `onChange` — the panel does not persist anything to localStorage during edit.
+2. Reveal `#edit-context` ("編輯: [pill] filename") and `#edit-actions` (Overwrite / Duplicate / Cancel) inside the sidebar; CSS `body.editing` hides `.drop-zone`, `.normal-actions`, `.controls-pane > footer`, and `#drop-overlay`; dims the pills bar, header, page-footer, and non-target cards to opacity 0.3 with `pointer-events: none`.
+3. The editing-target card gains an accent outline and its own remove button is disabled.
+
+Confirm flows:
+
+- **Overwrite** — `item.opts = read()`, blob URL revoked, action/preview cleared, status reset to queued, summary re-rendered, edit mode exits.
+- **Duplicate** — clones the item with `read()` as new opts, pushes to the queue, edit mode exits.
+- **Cancel / ESC** — exits without touching the card.
+
+Switching pills (programmatic) during edit auto-exits via `setActivePill`'s guard. User pill clicks are blocked by CSS `pointer-events: none` on the dimmed pills bar. Drops during edit are blocked at JS level (`addFiles` returns early if `editingItem` is set) and CSS hides the drop overlay.
+
+**Viewport-fit layout** — At `≥ 960 px` the page is locked to viewport height: `body { height: 100vh; overflow: hidden }`; `main` is a flex column with header / pills (flex: none), `.layout` (flex: 1), and `.page-footer` (flex: none). Both panes inside `.layout` use `min-height: 0; overflow-y: auto` so the queue (`.results-pane`) is the only scrollable region when cards exceed the viewport. Below `960 px` the page reverts to natural block flow.
 
 **Drop targets** — Two layered indicators:
 
-- A bordered `#drop-zone` in the left pane, click-to-pick.
-- A `document`-level **drag-anywhere overlay** (`#drop-overlay`) shown during any file drag anywhere on the window. A `dragDepth` counter avoids flicker as the cursor crosses descendant boundaries. File detection uses `dataTransfer.types.includes('Files')` so element drags are ignored.
+- A bordered `#drop-zone` in the left pane, click-to-pick (hidden in edit mode).
+- A `document`-level **drag-anywhere overlay** (`#drop-overlay`) shown during any file drag anywhere on the window. A `dragDepth` counter avoids flicker as the cursor crosses descendant boundaries. File detection uses `dataTransfer.types.includes('Files')` so element drags are ignored. Drag handlers return early when `editingItem` is set so the overlay never appears during edit.
 
 **File-list capture** — `change` and `drop` handlers snapshot `Array.from(fileList)` before doing async work, because both `input.files` (after `input.value = ''`) and `event.dataTransfer.files` (after the synchronous handler exits) can be cleared by the browser, dropping all but the first file otherwise.
 
-**Per-source card (`.source-card`)** — Header shows filename, source dimensions, optional duplicate badge, optional per-card target chips (only when `targets.length > 1`), and an `×` remove button. Body (`.outputs`) holds one `.output-row` per selected target.
+**Toast** — `showToast(message, { variant: 'info' | 'error', timeoutMs })` appends a node into a fixed top-center container (`#toast-host`, `top: 1rem; left: 50%; translateX(-50%)`). Same message within 1 s is de-duplicated. Auto-dismiss after 3.5 s; click to dismiss. Used for `toast_wrong_source`, `toast_switched_to`, `toast_unsupported_format`. ffmpeg load failures stay in the inline `#load-status` span (not toast).
 
-**Per-output row (`.output-row`)** — Grid layout: `→ Target | status | action | (progress, full-width) | (preview, full-width)`. Progress is set by `setStatus(item, target, key, pct)`; download link + preview replace the action cell on completion.
-
-**Chips** — Identical visual treatment for two scopes:
-
-- **Global GIF outputs default** in the left controls pane. Toggling propagates immediately to every queued GIF item whose outputs are all still pending, plus persists to `localStorage.codecraft.default_gif_targets` for future uploads.
-- **Per-card override** in each multi-target `.source-card`. Toggling adds/removes the corresponding `.output-row` for that one item.
-- Both enforce "at least one selected" (the only chip cannot be deselected).
+**Status states & card visuals** — `setStatus(item, key, pct, extra)` updates `item.status` and renders. The card gets `.is-processing` / `.is-done` / `.is-failed` modifiers that adjust its left border accent. The progress bar is hidden unless the status is `writing` or `converting`.
 
 **Duplicate detection** — `(name, size)` match against any existing queue item flags the new card with a `--warn`-coloured badge and i18n tooltip. Items are still queued and processed normally; the badge is informational only.
 
-**Remove** — The `×` button is disabled only while the item has any `processing` output. Pending, done, and failed items can all be removed; the handler revokes blob URLs and splices `queue`.
+**Remove** — The `✕` button is disabled if the card is processing OR is the current edit target. Pending, done, and failed (non-edit-target) items can all be removed; the handler revokes blob URLs and splices `queue`.
 
-**Concurrent control** — `running` is `true` for the duration of `startAll()`. While running, the Convert button, all chips (global + per-card), and all remove buttons are disabled. `setStatus` also re-evaluates the remove button so a finished output's card becomes removable mid-batch.
+**Concurrent control** — `running` is `true` for the duration of `startAll()`. While running, the Convert button is disabled. New drops are still accepted and processed in the same batch.
 
-**i18n** — `STRINGS['zh-Hant' | 'en']` keyed by short identifier; initial choice is `localStorage.codecraft.lang` or `navigator.language.startsWith('zh') ? 'zh-Hant' : 'en'`. `applyLang()` walks `[data-i18n]` for `textContent` and `[data-i18n-title]` for the `title` attribute; dynamic strings (per-row status, download links, dup badge) are re-rendered from stored state on language switch.
+**i18n** — `STRINGS['zh-Hant' | 'en']` keyed by short identifier; initial choice is `localStorage.codecraft.lang` or `navigator.language.startsWith('zh') ? 'zh-Hant' : 'en'`. `applyLang()` walks `[data-i18n]` for `textContent` and `[data-i18n-title]` for `title`; dynamic strings (per-card status / summary, download links, dup badge) are re-rendered from stored state on language switch. The sidebar widget is also re-rendered after a language switch so per-target quality labels follow the chosen language; during edit mode the rebuild preserves the editing context. Toast suggestion separator switches between `、` (zh-Hant) and `, ` (en). Pill labels (`"WebM → GIF"` etc.) are universal across languages and computed from `SOURCE_LABEL[source]` + `TARGET_LABEL[target]`.
 
-**Page footer** — single horizontal bar (wraps on narrow) with a privacy tagline ("純本機 ffmpeg.wasm · 高隱私" / "Pure-local ffmpeg.wasm · privacy-first") on the left and credit links (`Howar31` profile, `GitHub` repo, plus an uppercase "贊助 / Sponsor" label followed by `Ko-fi` and `PayPal` links) on the right. Ko-fi → `ko-fi.com/howar31`; PayPal → `donate.howar31.com` (Cloudflare 302 → PayPal Hosted Button `MLVT3HDZKUZCW`). Sponsor links hover to their brand colors (`#FF5E5B` / `#0070BA`). Order and Chinese wording follow the `accept-donations` skill's rules: Ko-fi first (guest-checkout friction is lowest), label uses「贊助」(not「捐款」or「支持」).
+**Page footer** — Single horizontal bar (wraps on narrow) with a privacy tagline ("純本機 ffmpeg.wasm · 高隱私" / "Pure-local ffmpeg.wasm · privacy-first") on the left and credit links (`Howar31` profile, `GitHub` repo, plus an uppercase "贊助 / Sponsor" label followed by `Ko-fi` and `PayPal` links) on the right. Ko-fi → `ko-fi.com/howar31`; PayPal → `donate.howar31.com` (Cloudflare 302 → PayPal Hosted Button `MLVT3HDZKUZCW`). Sponsor links hover to their brand colors (`#FF5E5B` / `#0070BA`). Order and Chinese wording follow the `accept-donations` skill's rules: Ko-fi first (guest-checkout friction is lowest), label uses 「贊助」 (not 「捐款」 or 「支持」).
 
 ## Conventions
 
 - Code comments: English.
-- AI-facing docs (`CLAUDE.md`, `SPEC.md`): English. README is human-facing and bilingual.
+- AI-facing docs (`CLAUDE.md`, `SPEC.md`): English. README is human-facing and bilingual (zh-Hant + en).
 - Commits: Conventional Commits (`feat:`, `fix:`, `docs:`, `ci:`, `chore:`, ...). One commit per feature.
 - Do not add COOP/COEP headers (see Architecture).
 - Do not switch the core URL away from `/dist/esm` (see Key Decisions).
-- For new conversion pairs: extend `SOURCE_TARGETS` and add a branch in `processOne` keyed by `${source}->${target}`.
+- For new conversion pairs: extend `PILLS` and add a `${source}->${target}` branch in `processOne`. The two new branches added in the workbench refactor (`webm->apng`, `apng->webm`) reuse the existing APNG-mux and libvpx VP8 recipes.
+- For new operations (trim / crop / mute / …): introduce a parallel registry; do not overload `PILLS`'s `source→target` semantics.
 
 ## Verification
 
-- **Manual:** `npm run dev`, drop a mix of `.webm` / `.gif` / `.apng`, toggle chips, run; inspect inline preview + downloaded files.
-- **E2E (ad hoc):** `/tmp/codecraft-gif-e2e.js` and `/tmp/codecraft-e2e.js` (Puppeteer, Node 18 via nvm) exercise the conversion pipelines and dump outputs to `/tmp/codecraft-out-*` / `/tmp/codecraft-gif-*`. Verified with `file`.
-- **Hero capture:** `/tmp/codecraft-hero-capture.js` drives the same UI with three synthetic demo files (mandelbrot, testsrc, cellular automaton) to produce `docs/hero.gif`.
+- **Manual:** `npm run dev`, navigate pills via the top bar or `#/<pill-id>` hash, drop sample files (or click-to-pick), verify queue cards carry per-card opts snapshots and the sidebar's persistence survives reloads.
+- **Puppeteer (ad hoc):** `/tmp/codecraft-verify*.js` scripts driven by `headless: 'new'` exercise pill routing, snapshot independence, edit-mode focus mask, cross-pill edit, auto-switch behavior, drop-blocking during edit, and toast positioning. Frame capture for the hero gif uses CDP `Page.captureScreenshot` in a fixed-interval loop, then `ffmpeg` palettegen + paletteuse to produce `docs/hero.gif`.
+- **Alpha caveat:** `webm-to-apng` and `apng-to-webm` have not been runtime-tested with transparency-bearing samples. Alpha may be lost through libvpx VP8 in single-threaded ffmpeg.wasm 0.12.
 - No unit tests yet — the surface area is one stateful module; integration via Puppeteer is the pragmatic gate.
 
 ## Deploy
@@ -217,22 +273,29 @@ npm run preview
 ## Known limitations / Non-goals
 
 - **Memory cap:** ffmpeg.wasm has a ~2 GB browser-side ceiling. Large/long inputs will OOM the worker.
-- **First-load weight:** ~30 MB ffmpeg-core download from unpkg on first visit; subsequent loads served from the HTTP cache.
-- **Serial batch:** single ffmpeg instance means queued conversions run strictly one at a time, and a multi-target item fans out into N serial encodes.
-- **No editing:** no trim, crop, or filters beyond `fps` / `scale`.
+- **First-load weight:** ~30 MB ffmpeg-core download from unpkg on first conversion; subsequent loads served from the HTTP cache.
+- **Serial batch:** single ffmpeg instance means queued conversions run strictly one at a time.
+- **No editing:** no trim, crop, or filters beyond `fps` / `scale`. The architecture reserves space for such tools as additional non-pill registries.
+- **Multi-target output dropped:** the previous "one drop → both WebM and APNG" affordance is gone. Users now convert from two pills, or use ✎ Duplicate to fan out from one card.
 - **No multi-threaded ffmpeg.wasm:** intentional — would require `SharedArrayBuffer` and therefore COOP/COEP, which complicates GH Pages and conflicts with the unpkg fetch.
-- **No format pairs outside the table in Purpose.** WebM↔APNG and PNG-static handling are deliberately omitted.
+- **Alpha through WebM↔APNG:** unverified. VP8 alpha in single-threaded ffmpeg.wasm 0.12 may not survive round-trips; transparent stickers may flatten to a solid background.
 - **FPS dropdown caps at 50** because GIF spec stores delays in 1/100 s (so 100 fps is the theoretical max, ~50 fps the practical browser ceiling); requesting more would only duplicate frames.
 - **Duplicate fingerprint is `(name, size)`** — quick and good enough for "user re-dragged the same file"; not a true byte-level hash.
 
 ## Key decisions
 
+- **Workbench framing.** The project is positioned as a codec workbench rather than a single-purpose converter. `PILLS` is the conversion-tool registry; future non-conversion tools (trim, crop, mute, frame export) are expected to live in a parallel registry. README, CLAUDE.md, and SPEC.md align on this product axis.
+- **One pill per conversion** instead of source-detected multi-target. The earlier design surfaced FPS/Width/Loop/Quality as a single global panel and let a GIF fan out to WebM + APNG via per-card chips. That created two kinds of conflict: (1) Loop is silently meaningless when the output is WebM; (2) the "Quality" radio meant three different things depending on which target the user had selected. Splitting by pill makes each view's options unambiguous and lets the labels be target-specific (palette accuracy / CRF / encoder effort). Multi-target is sacrificed; the ✎ Duplicate flow plus per-pill batching cover the realistic use cases.
+- **Snapshot opts at drop instead of late-binding to a global panel.** Each card carries its own `opts` object set at the moment it joined the queue. The sidebar describes "what new drops will use" — changing it doesn't mutate past cards. This matches the mental model of batch encoders (HandBrake, Compressor) and survives multi-batch workflows where the user changes settings between drops.
+- **Sidebar takes over as the edit surface.** Rather than building a duplicate edit panel inside each card, ✎ rebinds the existing sidebar widget to the target card's opts and dims everything else. One widget, one CSS path; new opts fields are added in one place (`buildOptsControls`).
+- **Auto-switch on wrong-source drop**, gated to single-source batches. Toast UX requires the user to click the right pill manually; an auto-switch is more direct when the user's intent is unambiguous. Mixed batches keep the per-file warn path to avoid surprise.
+- **Per-source last-pill memory** (`codecraft.last_pill_by_source`). When auto-switching, prefer the user's last pill for that source over `PILLS_BY_SOURCE[source][0]`. A user who tends to convert GIFs to APNG shouldn't be silently routed to GIF→WebM just because it's first in the array.
 - **ESM core build over UMD.** Vite spawns ffmpeg's worker with `type: "module"`. The library's fallback (`importScripts` → dynamic `import()`) only succeeds if the URL it imports actually exports a default. The UMD build does not; the ESM build does. Verified by reading `@ffmpeg/ffmpeg/dist/esm/worker.js`.
-- **VP8 (libvpx) over VP9 for GIF → WebM.** `libvpx-vp9` in ffmpeg.wasm 0.12 single-threaded crashes with `RuntimeError: memory access out of bounds` on the first encoded frame regardless of input size (the wasm build is `--disable-pthreads`; VP9's C path is unstable). VP8's older encoder is rock-solid in the same build and still produces small WebM files (~12× compression vs source GIF in practice). Revisit if/when ffmpeg.wasm ships a stable VP9-capable core.
+- **VP8 (libvpx) over VP9 for `*-to-webm`.** `libvpx-vp9` in ffmpeg.wasm 0.12 single-threaded crashes with `RuntimeError: memory access out of bounds` on the first encoded frame regardless of input size (the wasm build is `--disable-pthreads`; VP9's C path is unstable). VP8's older encoder is rock-solid in the same build and still produces small WebM files (~12× compression vs source GIF in practice). Revisit if/when ffmpeg.wasm ships a stable VP9-capable core.
 - **Drop COOP/COEP.** Single-threaded mode doesn't need them. They additionally break the unpkg fetch because unpkg's response lacks Cross-Origin-Resource-Policy.
 - **unpkg over self-hosted core.** Saves repo size and lets the browser HTTP cache amortise the 30 MB cost across visits.
 - **`peaceiris/actions-gh-pages` over `actions/deploy-pages`.** Simpler config; uses the classic `gh-pages` branch model rather than the new Pages artifact pipeline.
-- **Two-column sticky layout over a sticky action bar.** Wide screens already have horizontal real estate; using a left pane that's always visible is less obstructive than a stuck-to-top horizontal bar.
-- **Window-level drag-anywhere over per-zone drag.** Long queues push the visible drop-zone off-screen; routing every drop through `document` listeners keeps the affordance reachable, with a full-screen overlay as the indicator.
-- **Per-card multi-target via chips, not per-row dropdowns.** Selecting multiple outputs for one source is the central new feature; chips naturally extend to "click to add another output" without a multi-step modal. A global "GIF outputs default" propagates to the still-pending items so batch use cases avoid clicking each card.
+- **Viewport-fit layout with queue-only scroll.** Header, pills, sidebar, and footer all stay visible; only the queue list scrolls. This keeps the active controls reachable regardless of how many cards have accumulated, replacing the older `position: sticky` controls-pane trick. Reverts to natural block flow on narrow screens.
+- **Toast at top-center.** The previous bottom-right placement collided with the page-footer area and went unnoticed when the queue was busy. Top-center is in the natural eye-path and doesn't conflict with the top-right lang-switch.
+- **Window-level drag-anywhere over per-zone drag.** Long queues used to push the visible drop-zone off-screen; routing every drop through `document` listeners keeps the affordance reachable, with a full-screen overlay as the indicator. Both the overlay and the drag handlers themselves are guarded against the edit-mode state.
 - **FileList snapshot before async work.** Both `input.files` (when the input value is reset) and `dataTransfer.files` (after the sync handler exits) can be cleared mid-iteration by the browser; copying to an Array before yielding to async preserves the input.
