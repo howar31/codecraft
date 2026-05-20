@@ -1111,3 +1111,14 @@ if (location.hash !== `#/${initial}`) location.hash = `#/${initial}`;
 setActivePill(initial);
 applyLang();
 renderEmptyQueueHint();
+
+// ---------- service worker ----------
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    const base = import.meta.env.BASE_URL || '/';
+    navigator.serviceWorker
+      .register(`${base}sw.js`, { scope: base })
+      .catch((err) => console.warn('SW registration failed:', err));
+  });
+}

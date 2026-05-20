@@ -21,6 +21,7 @@ In-browser codec workbench for WebM / GIF / APNG cross-conversion. Files never l
 ## Features
 
 - 純前端，無後端，無上傳；30 MB 的 ffmpeg-core 在首次轉檔時才從 CDN 載入
+- **PWA / 離線可用**：可加入桌面或主畫面；Service Worker 第一次連線時把 app shell 與 30 MB 的 ffmpeg-core 都快取下來，之後完全離線也能轉檔 / Installable PWA — after the first online visit, the service worker caches the app shell and the 30 MB ffmpeg-core so subsequent conversions work fully offline
 - **6 條轉換路徑**：WebM ↔ GIF、GIF ↔ APNG、WebM ↔ APNG。每條轉換一個 pill，UI 只露出該轉換真正相關的選項
 - 拖檔到錯誤 pill 時自動切到對的那個（記住每個 source 上次用的 pill），info toast 確認
 - 設定快照（snapshot at drop）：拖入瞬間把 FPS / 寬度 / 品質 / Loop 拍存進該卡，後續改 sidebar 不會影響已排入的卡

@@ -43,8 +43,8 @@ index.html  →  main.js  →  @ffmpeg/ffmpeg (ESM, module worker)
 
 ```
 .
-├── index.html                       UI shell: pills bar, two-column layout, edit-context + edit-actions slots, drop overlay, toast host
-├── main.js                          App logic (single module)
+├── index.html                       UI shell: pills bar, two-column layout, edit-context + edit-actions slots, drop overlay, toast host; <head> declares favicon (svg+png), apple-touch-icon, manifest, theme-color
+├── main.js                          App logic (single module); registers the service worker after window load
 ├── style.css                        Dark theme, viewport-fit responsive layout
 ├── vite.config.js                   base: '/codecraft/' + optimizeDeps.exclude for ffmpeg packages
 ├── package.json                     deps: @ffmpeg/ffmpeg, @ffmpeg/util · devDep: vite
@@ -54,6 +54,16 @@ index.html  →  main.js  →  @ffmpeg/ffmpeg (ESM, module worker)
 ├── CLAUDE.md                        Agent-facing index (commands, conventions, pointers)
 ├── SPEC.md                          This file
 ├── .gitignore
+├── public/                          Static assets copied verbatim by Vite to dist/ at the base URL root
+│   ├── favicon.svg                  Mosaic icon, rounded-corner version (favicon source of truth)
+│   ├── icon-maskable.svg            Full-bleed mosaic for Android adaptive (maskable) icons
+│   ├── favicon-32.png               Legacy PNG favicon fallback
+│   ├── apple-touch-icon.png         180×180 iOS home-screen icon
+│   ├── icon-192.png                 PWA manifest "any" purpose
+│   ├── icon-512.png                 PWA manifest "any" purpose
+│   ├── icon-maskable-512.png        PWA manifest "maskable" purpose
+│   ├── manifest.webmanifest         PWA manifest
+│   └── sw.js                        Service worker (app shell SWR + ffmpeg-core cache-first)
 ├── docs/
 │   └── hero.gif                     README hero animation, captured via Puppeteer
 ├── .github/
@@ -238,6 +248,29 @@ Switching pills (programmatic) during edit auto-exits via `setActivePill`'s guar
 
 **Page footer** — Single horizontal bar (wraps on narrow) with a privacy tagline ("純本機 ffmpeg.wasm · 高隱私" / "Pure-local ffmpeg.wasm · privacy-first") on the left and inline credit + donation links (`Howar31` profile, `GitHub` repo, `Ko-fi`, `PayPal`) on the right. Ko-fi → `ko-fi.com/howar31`; PayPal → `donate.howar31.com` (Cloudflare 302 → PayPal Hosted Button `MLVT3HDZKUZCW`). Hover colors `#FF5E5B` / `#0070BA`. CSS classes are `.kofi-link` / `.paypal-link` (with a shared `.support-link`) — deliberately no `sponsor` / `donate` words in any DOM-reaching identifier so adblock cosmetic filters don't hide the donation CTAs. The visible-text decision (no prefix label, just the platform names inline) is a UI preference. See `accept-donations` skill → "Adblock-aware identifiers" for the cross-project rule.
 
+## PWA / offline
+
+`public/manifest.webmanifest` declares the app installable with `display: standalone`, `start_url: "./"`, `scope: "./"` (both relative to the manifest URL → `/codecraft/`), `theme_color` / `background_color` = `#0f1117`, and four icons (favicon.svg "any" + 192/512 PNG "any" + 512 PNG "maskable"). `index.html` `<head>` carries `rel=icon` SVG + 32 px PNG fallback, `rel=apple-touch-icon`, `rel=manifest`, and `<meta name="theme-color" content="#0f1117">`.
+
+The maskable variant uses `public/icon-maskable.svg`, which is full-bleed (no rounded corners) with the mosaic scaled to fit the inner ~80 % safe zone so Android's circle/squircle masks don't clip the design.
+
+`public/sw.js` is registered from `main.js`'s boot block (after the rest of the app initializes):
+
+```js
+navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL })
+```
+
+Registration is wrapped in `'serviceWorker' in navigator` and `window.addEventListener('load', …)` so it doesn't compete with first-paint work. Errors are logged via `console.warn` but never block the app.
+
+**Caching strategies:**
+
+- **`unpkg.com/@ffmpeg/core@*` (cross-origin, version-pinned URL):** cache-first, indefinite. The URL is locked to `@0.12.6` in `main.js`, so cache hits are provably the same bytes as a network fetch — no risk of staleness. Saves the ~30 MB wasm + glue code download on every subsequent visit and enables offline conversion.
+- **Same-origin app shell:** stale-while-revalidate. The install handler pre-caches only a minimal bootstrap (`./`, `./manifest.webmanifest`, `./favicon.svg`); everything else (Vite's hashed JS/CSS bundles, icons) is cached opportunistically the first time it's requested. This avoids the impossibility of pre-listing Vite's hashed asset names at SW source time.
+
+**Cache versioning:** a single `VERSION` constant (`codecraft-v1`) prefixes both cache names (`<VERSION>-shell`, `<VERSION>-core`). The `activate` handler deletes any cache whose key doesn't start with the current `VERSION`. Bumping `VERSION` is the safe nuke-and-rebuild knob for any SW-related issue.
+
+**Icon generation:** the two SVGs (`favicon.svg`, `icon-maskable.svg`) are the source of truth. The five PNG variants (favicon-32, apple-touch 180, icon-192/512, icon-maskable-512) are rendered locally via `rsvg-convert`; they are committed to `public/` and not regenerated as part of `npm run build`.
+
 ## Conventions
 
 - Code comments: English.
@@ -253,6 +286,7 @@ Switching pills (programmatic) during edit auto-exits via `setActivePill`'s guar
 - **Manual:** `npm run dev`, navigate pills via the top bar or `#/<pill-id>` hash, drop sample files (or click-to-pick), verify queue cards carry per-card opts snapshots and the sidebar's persistence survives reloads.
 - **Puppeteer (ad hoc):** `/tmp/codecraft-verify*.js` scripts driven by `headless: 'new'` exercise pill routing, snapshot independence, edit-mode focus mask, cross-pill edit, auto-switch behavior, drop-blocking during edit, and toast positioning. Frame capture for the hero gif uses CDP `Page.captureScreenshot` in a fixed-interval loop, then `ffmpeg` palettegen + paletteuse to produce `docs/hero.gif`.
 - **Alpha caveat:** `webm-to-apng` and `apng-to-webm` have not been runtime-tested with transparency-bearing samples. Alpha may be lost through libvpx VP8 in single-threaded ffmpeg.wasm 0.12.
+- **PWA smoke test:** in `npm run preview` (or the built deployment), open Chrome DevTools → Application → Manifest (icons + theme-color render correctly), Service Workers (sw.js is activated), then toggle Network → Offline + reload (app shell loads from cache). After one online conversion, `unpkg.com/@ffmpeg/core@*` entries should appear under the Cache Storage section.
 - No unit tests yet — the surface area is one stateful module; integration via Puppeteer is the pragmatic gate.
 
 ## Deploy
@@ -273,7 +307,8 @@ npm run preview
 ## Known limitations / Non-goals
 
 - **Memory cap:** ffmpeg.wasm has a ~2 GB browser-side ceiling. Large/long inputs will OOM the worker.
-- **First-load weight:** ~30 MB ffmpeg-core download from unpkg on first conversion; subsequent loads served from the HTTP cache.
+- **First-load weight:** ~30 MB ffmpeg-core download from unpkg on first conversion; subsequent loads served from the SW cache (after one online visit).
+- **First visit requires network:** the service worker can only cache assets it has actually seen. The app shell is cached during the first navigation; ffmpeg-core is cached during the first conversion. Truly first-time-on-this-device usage is online-only.
 - **Serial batch:** single ffmpeg instance means queued conversions run strictly one at a time.
 - **No editing:** no trim, crop, or filters beyond `fps` / `scale`. The architecture reserves space for such tools as additional non-pill registries.
 - **Multi-target output dropped:** the previous "one drop → both WebM and APNG" affordance is gone. Users now convert from two pills, or use ✎ Duplicate to fan out from one card.
@@ -299,3 +334,8 @@ npm run preview
 - **Toast at top-center.** The previous bottom-right placement collided with the page-footer area and went unnoticed when the queue was busy. Top-center is in the natural eye-path and doesn't conflict with the top-right lang-switch.
 - **Window-level drag-anywhere over per-zone drag.** Long queues used to push the visible drop-zone off-screen; routing every drop through `document` listeners keeps the affordance reachable, with a full-screen overlay as the indicator. Both the overlay and the drag handlers themselves are guarded against the edit-mode state.
 - **FileList snapshot before async work.** Both `input.files` (when the input value is reset) and `dataTransfer.files` (after the sync handler exits) can be cleared mid-iteration by the browser; copying to an Array before yielding to async preserves the input.
+- **Cache-first for ffmpeg-core, stale-while-revalidate for app shell.** The unpkg URL is version-pinned to `@0.12.6`, so cache-first will never serve stale bytes — a cache hit is provably identical to a fresh network fetch. The app shell uses hashed Vite filenames that change every build, so SWR (with on-the-fly caching on first request) is both correct and avoids the impossibility of pre-listing hash names at SW source time. The combination delivers true offline after one online visit without any build-time SW codegen.
+- **No vite-plugin-pwa.** The hand-rolled SW is ~70 lines and avoids a build-time dependency that would otherwise need to enumerate `dist/` assets to produce a precache manifest. The runtime SWR approach is simpler and equally offline-capable after the first visit.
+- **Favicon source is SVG; PNG variants generated locally.** Modern browsers all support SVG favicons; PNG variants exist for legacy fallback (favicon-32), iOS (apple-touch-icon 180), and PWA manifest (icon-192/512 "any" + icon-maskable-512 from a separate full-bleed SVG). They are committed to `public/` and not regenerated by the Vite build — bumping the design means re-running `rsvg-convert` and committing the new PNGs.
+- **Mosaic favicon design.** Four-by-four grid of `#7c9eff` (accent) tiles with varied opacity (1.0 / 0.7 / 0.6 / 0.4 / 0.3 / 0.2) over the dark surface (`#1a1e27`). Conveys pixel / quantization / codec essence without locking the brand to a specific operation (conversion vs trim vs crop), which matches the workbench framing.
+- **`theme_color` = `#0f1117` (page background), not the accent.** A dark theme color keeps the system chrome (status bar, task switcher) integrated with the app's dark UI; using the accent would make the surrounding chrome blue and clash.
