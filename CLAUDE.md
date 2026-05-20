@@ -30,7 +30,7 @@ npm run preview
 - Non-conversion operations (trim, crop, mute, frame export, …) will not fit `PILLS`'s `source→target` shape. Expect a parallel tool registry rather than overloading the converter abstraction.
 - PWA: `public/manifest.webmanifest` + `public/sw.js` registered from `main.js` at scope `/codecraft/`. SW strategy — cache-first for the version-pinned `unpkg.com/@ffmpeg/core@0.12.6/*` (~30 MB, never expires), stale-while-revalidate for same-origin app shell. Bump `VERSION` in `sw.js` to invalidate.
 - Icons: source is `public/favicon.svg` (Mosaic). PNG variants (favicon-32, apple-touch 180, icon-192/512, icon-maskable-512) rendered via `rsvg-convert` from the SVGs. Maskable variant uses `public/icon-maskable.svg` (full-bleed, no rounded corners).
-- Build: Vite 5, `base: '/codecraft/'`. Deploys to `gh-pages` via GitHub Actions.
+- Build: Vite 7, `base: '/codecraft/'`. Deploys to `gh-pages` via GitHub Actions.
 
 ## Conventions
 

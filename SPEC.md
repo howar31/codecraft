@@ -32,7 +32,7 @@ index.html  →  main.js  →  @ffmpeg/ffmpeg (ESM, module worker)
                            @ffmpeg/core 0.12.6 (ESM build, from unpkg)
 ```
 
-- **Build:** Vite 5.4, `base: '/codecraft/'` for GitHub Pages subpath.
+- **Build:** Vite 7, `base: '/codecraft/'` for GitHub Pages subpath.
 - **Worker:** Vite spawns ffmpeg's worker with `type: "module"`. The library tries `importScripts(coreURL)` first (classic-worker path), catches, then falls back to dynamic `import()`. The fallback only works against the ESM core build — hence `FFMPEG_CORE_BASE` points to `https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm`.
 - **Core loading:** `coreURL` / `wasmURL` are fetched once, converted to blob URLs via `toBlobURL`, then passed to `ffmpeg.load()`. ~30 MB total, browser-cached after first load.
 - **No COOP/COEP:** Single-threaded ffmpeg.wasm does not need `SharedArrayBuffer`. Setting those headers actually breaks the unpkg fetch (no CORP on the response).
