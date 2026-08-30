@@ -87,6 +87,7 @@ const STRINGS = {
     toast_switched_to: '已切到「{name}」',
     toast_unsupported_format: '不支援這個格式：{filename}',
     footer_privacy: '純本機 ffmpeg.wasm · 高隱私',
+    footer_page: '贊助',
   },
   en: {
     subtitle: 'In-browser codec workbench · WebM / GIF / APNG conversions',
@@ -145,6 +146,7 @@ const STRINGS = {
     toast_switched_to: 'Switched to {name}',
     toast_unsupported_format: 'Unsupported file format: {filename}',
     footer_privacy: 'Pure-local ffmpeg.wasm · privacy-first',
+    footer_page: 'Sponsor',
   },
 };
 

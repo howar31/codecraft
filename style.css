@@ -623,7 +623,8 @@ body.editing .pill { cursor: default; }
 .page-footer .links a:hover { color: var(--accent); text-decoration: underline; }
 .page-footer .links .sep,
 .page-footer .links .kofi-link:hover { color: #FF5E5B; }
-.page-footer .links .paypal-link:hover { color: #0070BA; }
+.page-footer .links .page-link:hover { color: #B4532C; }
+.page-footer .links .page-link svg { width: 0.85em; height: 0.85em; vertical-align: -0.08em; margin-right: 0.25em; }
 
 /* ---------- drop overlay ---------- */
 
